@@ -1,25 +1,15 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import json
 
 import networkx as nx
-import nxviz as nv
-from nxviz import annotate
-from nxviz import nodes
-from nxviz import edges
-from nxviz.plots import aspect_equal, despine
 import matplotlib.pyplot as plt
-from matplotlib.cm import ScalarMappable
-from matplotlib.colors import LinearSegmentedColormap, Normalize
 import igraph as ig
-from pyvis.network import Network
 
 from app_functions import create_graph
 from app_functions import draw_one_graph_streamlit
 from app_functions import draw_circle_graph_streamlit
 from app_functions import draw_arc_graph
-from app_functions import draw_graph_with_features
 from app_functions import get_degree
 from app_functions import draw_degree_rank
 from app_functions import draw_degree_hist
@@ -30,15 +20,16 @@ from app_functions import get_top10_betweenness_centrality
 from app_functions import plot_betweenness
 from app_functions import get_top10_pagerank
 from app_functions import corr_measures
+from app_functions import detect_communities_girvan_newman
+from app_functions import analyze_communities
+from app_functions import visualize_partition_interactive
+from app_functions import visualize_partition_interactive_KL
 
-
-# Set page configuration
 st.set_page_config(
     page_title="StarWars character analysis",
     layout="wide"
 )
 
-# Create sidebar navigation
 def sidebar_nav():
     st.sidebar.title("Navigation")
     return st.sidebar.radio(
@@ -49,11 +40,11 @@ def sidebar_nav():
          "Eccentricity Analysis", 
          "Centrality Analysis", 
          "Corralation Analysis", 
+         "Community Detection",
          "Conclusion", 
          "Dataset"]
     )
 
-# Individual page functions
 def welcome_page():
     st.markdown("# StarWars Character importance Analysis")
     
@@ -126,7 +117,6 @@ def welcome_page():
 
 def eda_page():
     G = st.session_state.G
-    # convert from NetworkX to igraph
     net = []
     net.append(ig.Graph.from_networkx(G[0]))
     net.append(ig.Graph.from_networkx(G[1]))
@@ -165,21 +155,18 @@ def eda_page():
         draw_one_graph_streamlit(G[0], 'Interactions Network')
         draw_circle_graph_streamlit(G[0], 'Circle Graph')
         draw_arc_graph(G[0], 'Arc Network')
-        # draw_graph_with_features(net[0], 'k')
     
     if selected_plot == "Mention Plots":
         st.markdown("### Mention Network")
         draw_one_graph_streamlit(G[1], 'Mention Network')
         draw_circle_graph_streamlit(G[1], 'Circle Graph')
         draw_arc_graph(G[1], 'Arc Network')
-        # draw_graph_with_features(net[1], 'k')
     
     if selected_plot == "Merge Plots":
         st.markdown("### Merge Network")
         draw_one_graph_streamlit(G[2], 'Merge Network')
         draw_circle_graph_streamlit(G[2], 'Circle Graph')
         draw_arc_graph(G[2], 'Arc Network')
-        # draw_graph_with_features(net[2], 'k')
     
     st.session_state.net = net
 
@@ -192,7 +179,7 @@ def degree_analysis():
 
     if selected_plot == 'Interaction Plots':
         degree_data = get_degree(G[0], sort=True)[:10]
-        st.markdown("## Betweenness Centrality")
+        st.markdown("## Degree data")
         col1, col2 = st.columns(2)
         with col1:
             df = pd.DataFrame(degree_data, columns=["Character", "Degree"])
@@ -208,7 +195,7 @@ def degree_analysis():
     
     if selected_plot == 'Mention Plots':
         degree_data = get_degree(G[1], sort=True)[:10]
-        st.markdown("## Betweenness Centrality")
+        st.markdown("## Degree data")
         col1, col2= st.columns(2)
         with col1:
             df = pd.DataFrame(degree_data, columns=["Character", "Degree"])
@@ -223,7 +210,7 @@ def degree_analysis():
     
     if selected_plot == 'Merge Plots':
         degree_data = get_degree(G[2], sort=True)[:10]
-        st.markdown("## Betweenness Centrality")
+        st.markdown("## Degree data")
         col1, col2= st.columns(2)
         with col1:
             df = pd.DataFrame(degree_data, columns=["Character", "Degree"])
@@ -314,7 +301,7 @@ def centrality_analysis():
 
     st.markdown("## Betweenness Centrality Plot")
     net = st.session_state.net
-    st.write("Let's visualize the vertex and edge betweenness using the **igraph** library. We will use the betweenness centrality of a node the betweenness centrality of an edge.")
+    # st.write("Let's visualize the vertex and edge betweenness using the **igraph** library. We will use the betweenness centrality of a node the betweenness centrality of an edge.")
     fig, axs = plt.subplots(
         3, 3,
         figsize=(20, 10),
@@ -366,6 +353,57 @@ def correlation_page():
     st.dataframe(correlations[2].T.corr())
 
     st.session_state.correlations = correlations
+
+def community_detection():
+    G = st.session_state.G
+    st.markdown("# Community Detection")
+
+    st.markdown("### Girvan-Newman Algorithm")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        gn_communities, gn_modularity = detect_communities_girvan_newman(G[0])
+        gn_analysis = analyze_communities(G[0], gn_communities)
+        for comm, size in gn_analysis['community_sizes'].items(): st.write(f"Community {comm+1}:", size)
+        fig = visualize_partition_interactive(G[0], gn_communities)
+        st.plotly_chart(fig, use_container_width=True)
+
+    with col2:
+        gn_communities, gn_modularity = detect_communities_girvan_newman(G[1])
+        gn_analysis = analyze_communities(G[1], gn_communities)
+        for comm, size in gn_analysis['community_sizes'].items(): st.write(f"Community {comm+1}:", size)
+        fig = visualize_partition_interactive(G[1], gn_communities)
+        st.plotly_chart(fig, use_container_width=True)
+
+    with col3:
+        gn_communities, gn_modularity = detect_communities_girvan_newman(G[2])
+        gn_analysis = analyze_communities(G[2], gn_communities)
+        for comm, size in gn_analysis['community_sizes'].items(): st.write(f"Community {comm+1}:", size)
+        fig = visualize_partition_interactive(G[2], gn_communities)
+        st.plotly_chart(fig, use_container_width=True)
+    
+    st.markdown("### Kernighan-Lin")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        partition = nx.algorithms.community.kernighan_lin_bisection(G[0])
+        st.write("Community 1:", len(partition[0]))
+        st.write("Community 2:", len(partition[1]))
+        
+        fig = visualize_partition_interactive_KL(G[0], partition)
+        st.plotly_chart(fig, use_container_width=True)
+    with col2:
+        partition = nx.algorithms.community.kernighan_lin_bisection(G[1])
+        st.write("Community 1:", len(partition[0]))
+        st.write("Community 2:", len(partition[1]))
+        
+        fig = visualize_partition_interactive_KL(G[1], partition)
+        st.plotly_chart(fig, use_container_width=True)
+    with col3:
+        partition = nx.algorithms.community.kernighan_lin_bisection(G[2])
+        st.write("Community 1:", len(partition[0]))
+        st.write("Community 2:", len(partition[1]))
+        
+        fig = visualize_partition_interactive_KL(G[2], partition)
+        st.plotly_chart(fig, use_container_width=True)
 
 def dataset_page():
     st.markdown("# Dataset")
@@ -426,12 +464,9 @@ def conclusion_page():
         st.write("Node with Maximum Value for Each Centrality Measure:")
         st.dataframe(df_max)
 
-# Main app logic
 def main():
-    # Get current page from sidebar
     current_page = sidebar_nav()
     
-    # Route to appropriate page
     if current_page == "Welcome":
         welcome_page()
     elif current_page == "EDA":
@@ -444,6 +479,8 @@ def main():
         centrality_analysis()
     elif current_page == "Corralation Analysis":
         correlation_page()
+    elif current_page == "Community Detection":
+        community_detection()
     elif current_page == "Dataset":
         dataset_page()
     else:
